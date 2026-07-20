@@ -96,6 +96,7 @@
   }
   input[type="search"]::placeholder{color:var(--ink-soft);}
   input[type="search"]{font-family:var(--mono);}
+  input::placeholder,textarea::placeholder{font-size:14px;color:var(--ink-soft);}
 
   .tag-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;align-items:center;}
   .tag-chip{
@@ -219,17 +220,17 @@
   }
   .modal label:first-of-type{margin-top:0;}
   textarea#entry-content{
-    width:100%;min-height:150px;border:1px solid var(--line);border-radius:5px;
+    width:100%;min-height:150px;border:1px solid var(--line);border-radius:16px;
     padding:12px;font-family:var(--app-font);font-size:16.5px;line-height:1.9;
     resize:vertical;background:var(--paper);
   }
   input#entry-source{
-    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:5px;
+    width:100%;padding:10px 16px;border:1px solid var(--line);border-radius:999px;
     font-family:var(--mono);font-size:16px;background:var(--paper);
   }
   .tag-input-wrap{
     display:flex;flex-wrap:wrap;gap:6px;align-items:center;
-    border:1px solid var(--line);border-radius:5px;padding:7px 9px;background:var(--paper);
+    border:1px solid var(--line);border-radius:16px;padding:8px 12px;background:var(--paper);
   }
   .tag-input-wrap .tag-chip{background:var(--stamp-soft);border-color:transparent;color:var(--stamp);}
   #entry-tag-text{
@@ -406,14 +407,14 @@
     <label for="entry-content">内容</label>
     <textarea id="entry-content" placeholder="粘贴或输入摘录的文字…"></textarea>
 
-    <label for="entry-source">出处（可选）</label>
-    <input type="text" id="entry-source" placeholder="书名 / 文章 / 链接…">
-
     <label for="entry-tag-text">标签（可选）</label>
     <div class="tag-input-wrap" id="tag-input-wrap">
       <input type="text" id="entry-tag-text" placeholder="输入后回车添加">
     </div>
     <div class="tag-suggest" id="tag-suggest"></div>
+
+    <label for="entry-source">出处（可选）</label>
+    <input type="text" id="entry-source" placeholder="书名 / 文章 / 链接…">
 
     <div class="hint">⌘/Ctrl + Enter 保存　·　Esc 取消</div>
     <div class="modal-actions">
