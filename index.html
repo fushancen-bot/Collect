@@ -225,7 +225,7 @@
     resize:vertical;background:var(--paper);
   }
   input#entry-source{
-    width:100%;padding:10px 16px;border:1px solid var(--line);border-radius:999px;
+    flex:1;min-width:0;width:auto;padding:8px 12px;border:1px solid var(--line);border-radius:999px;
     font-family:var(--mono);font-size:16px;background:var(--paper);
   }
   .tag-input-wrap{
@@ -246,7 +246,8 @@
   }
   .source-toggle:hover{color:var(--stamp);}
   .source-details{display:none;}
-  .source-details.open{display:block;}
+  .source-details.open{display:flex;align-items:center;gap:10px;margin-top:8px;}
+  .source-details label{margin:0;white-space:nowrap;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
   .btn-primary{
     background:var(--stamp);color:var(--paper-card);border:none;
@@ -423,7 +424,7 @@
 
     <button type="button" class="source-toggle" id="source-toggle" aria-expanded="false">＋ 补充出处</button>
     <div class="source-details" id="source-details">
-      <label for="entry-source">出处详情（可选）</label>
+      <label for="entry-source">出处详情</label>
       <input type="text" id="entry-source" placeholder="作者 / 书名 / 链接 / 页码…">
     </div>
 
