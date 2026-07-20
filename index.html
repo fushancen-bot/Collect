@@ -239,6 +239,14 @@
   }
   .tag-suggest{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
   .tag-suggest .tag-chip{cursor:pointer;}
+  .source-toggle{
+    display:inline-flex;align-items:center;margin-top:14px;padding:5px 2px;border:0;
+    background:transparent;color:var(--ink-soft);font-family:var(--app-font);font-size:12px;
+    text-decoration:underline dotted;text-underline-offset:4px;
+  }
+  .source-toggle:hover{color:var(--stamp);}
+  .source-details{display:none;}
+  .source-details.open{display:block;}
   .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px;}
   .btn-primary{
     background:var(--stamp);color:var(--paper-card);border:none;
@@ -413,8 +421,11 @@
     </div>
     <div class="tag-suggest" id="tag-suggest"></div>
 
-    <label for="entry-source">出处（可选）</label>
-    <input type="text" id="entry-source" placeholder="书名 / 文章 / 链接…">
+    <button type="button" class="source-toggle" id="source-toggle" aria-expanded="false">＋ 补充出处</button>
+    <div class="source-details" id="source-details">
+      <label for="entry-source">出处详情（可选）</label>
+      <input type="text" id="entry-source" placeholder="作者 / 书名 / 链接 / 页码…">
+    </div>
 
     <div class="hint">⌘/Ctrl + Enter 保存　·　Esc 取消</div>
     <div class="modal-actions">
@@ -760,6 +771,7 @@
     document.getElementById("modal-title-text").textContent = entry ? "编辑摘录" : "新建摘录";
     document.getElementById("entry-content").value = entry ? entry.content : "";
     document.getElementById("entry-source").value = entry ? (entry.source||"") : "";
+    setSourceExpanded(Boolean(entry && entry.source));
     currentTags = entry ? entry.tags.slice() : [];
     renderTagChipsInModal();
     renderTagSuggestions();
@@ -773,6 +785,13 @@
     document.getElementById("overlay").classList.remove("open");
     editingId = null;
     currentTags = [];
+  }
+  function setSourceExpanded(expanded){
+    var details = document.getElementById("source-details");
+    var toggle = document.getElementById("source-toggle");
+    details.classList.toggle("open", expanded);
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.textContent = expanded ? "－ 收起出处详情" : "＋ 补充出处";
   }
   function renderTagChipsInModal(){
     var wrap = document.getElementById("tag-input-wrap");
@@ -965,6 +984,11 @@
   document.getElementById("modal-close").addEventListener("click", closeModal);
   document.getElementById("modal-cancel").addEventListener("click", closeModal);
   document.getElementById("modal-save").addEventListener("click", saveEntry);
+  document.getElementById("source-toggle").addEventListener("click", function(){
+    var expanded = !document.getElementById("source-details").classList.contains("open");
+    setSourceExpanded(expanded);
+    if(expanded) setTimeout(function(){ document.getElementById("entry-source").focus(); }, 30);
+  });
   document.getElementById("overlay").addEventListener("click", function(e){
     if(e.target.id === "overlay") closeModal();
   });
