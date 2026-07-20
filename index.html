@@ -54,7 +54,7 @@
   ::selection{background:var(--stamp-soft);}
   button,input,textarea{font:inherit;color:inherit;}
   button{cursor:pointer;}
-  :focus-visible{outline:2px solid var(--stamp);outline-offset:2px;}
+  button:focus-visible{outline:2px solid var(--stamp);outline-offset:2px;}
 
   .container{max-width:640px;margin:0 auto;padding:0 20px;}
 
@@ -94,6 +94,7 @@
     width:100%;background:var(--paper-card);border:1px solid var(--line);
     border-radius:999px;padding:10px 16px 10px 36px;font-size:16px;color:var(--ink);
   }
+  input[type="search"]:focus{outline:none;border-color:var(--stamp);}
   input[type="search"]::placeholder{color:var(--ink-soft);}
   input[type="search"]{font-family:var(--mono);}
   input::placeholder,textarea::placeholder{font-size:14px;color:var(--ink-soft);}
@@ -220,18 +221,22 @@
   }
   .modal label:first-of-type{margin-top:0;}
   textarea#entry-content{
-    width:100%;min-height:150px;border:1px solid var(--line);border-radius:16px;
+    width:100%;min-height:150px;border:1px solid transparent;border-radius:16px;
     padding:12px;font-family:var(--app-font);font-size:16.5px;line-height:1.9;
-    resize:vertical;background:var(--paper);
+    resize:vertical;background:transparent;transition:border-color .15s;
   }
   input#entry-source{
-    flex:1;min-width:0;width:auto;padding:8px 12px;border:1px solid var(--line);border-radius:999px;
-    font-family:var(--mono);font-size:16px;background:var(--paper);
+    flex:1;min-width:0;width:auto;padding:8px 12px;border:1px solid transparent;border-radius:16px;
+    font-family:var(--mono);font-size:16px;background:transparent;transition:border-color .15s;
   }
   .tag-input-wrap{
     display:flex;flex-wrap:wrap;gap:6px;align-items:center;
-    border:1px solid var(--line);border-radius:16px;padding:8px 12px;background:var(--paper);
+    border:1px solid transparent;border-radius:16px;padding:8px 12px;background:transparent;
+    transition:border-color .15s;
   }
+  textarea#entry-content:focus,input#entry-source:focus{outline:none;border-color:var(--stamp);}
+  .tag-input-wrap:focus-within{border-color:var(--stamp);}
+  #entry-tag-text:focus{outline:none;}
   .tag-input-wrap .tag-chip{background:var(--stamp-soft);border-color:transparent;color:var(--stamp);}
   #entry-tag-text{
     border:none;background:none;flex:1;min-width:80px;padding:3px 2px;
