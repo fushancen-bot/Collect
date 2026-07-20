@@ -178,7 +178,7 @@
 
   .empty{text-align:center;padding:90px 20px;color:var(--ink-soft);}
   .empty svg{width:40px;height:40px;color:var(--line);margin-bottom:14px;}
-  .empty p{font-family:var(--mono);font-size:14px;line-height:1.8;margin:0;}
+  .empty p{font-family:var(--mono);font-size:13px;line-height:1.8;margin:0;white-space:nowrap;}
 
   /* ---------- fab ---------- */
   .fab{
@@ -339,6 +339,7 @@
   }
   @media (max-width:780px){
     input,textarea,select{font-size:16px !important;}
+    .empty p{font-size:clamp(11px,3.35vw,13px);}
     .month-axis{left:3px;top:54%;max-height:52vh;}
     .month-axis::before{left:7px;}
     .month-link{padding-right:3px;gap:4px;font-size:10px;}
