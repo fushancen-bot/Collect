@@ -1,4 +1,4 @@
-const CACHE_NAME = "excerpt-drawer-v7";
+const CACHE_NAME = "excerpt-drawer-v8";
 const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {
