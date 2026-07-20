@@ -1,0 +1,13 @@
+{
+  "name": "摘句抽屉",
+  "short_name": "摘句抽屉",
+  "description": "把偶然遇见的句子，收进一只私人抽屉。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EDE7D8",
+  "theme_color": "#EDE7D8",
+  "icons": [
+    { "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
