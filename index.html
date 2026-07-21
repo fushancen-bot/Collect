@@ -284,6 +284,22 @@
     padding:10px 14px;font-family:var(--mono);font-size:16px;color:var(--ink);
   }
   .share-name-wrap input:focus{outline:none;border-color:var(--stamp);}
+  .share-capture-host{
+    position:fixed;left:-10000px;top:0;z-index:-1;pointer-events:none;
+  }
+  .share-capture-card{
+    margin:0 !important;transform:none !important;transition:none !important;
+    box-sizing:border-box;
+  }
+  .share-card-footer{
+    margin-top:18px;text-align:right;color:var(--ink-soft);
+    font-family:var(--mono);font-size:12.5px;line-height:1.6;
+  }
+  .share-preview-modal{max-width:420px;border-radius:20px;padding:18px;}
+  .share-preview-image{
+    display:block;width:auto;max-width:100%;max-height:62vh;object-fit:contain;
+    margin:4px auto 0;border-radius:3px;box-shadow:0 3px 14px var(--shadow);
+  }
 
   /* ---------- settings panel ---------- */
   .settings-panel{
@@ -487,8 +503,23 @@
   </div>
 </div>
 
+<div class="overlay" id="share-preview-overlay">
+  <div class="modal share-preview-modal" role="dialog" aria-modal="true" aria-labelledby="share-preview-title">
+    <div class="modal-title" id="share-preview-title">
+      <span>就是这张卡片</span>
+      <button id="share-preview-close" aria-label="关闭">✕</button>
+    </div>
+    <img class="share-preview-image" id="share-preview-image" alt="分享图片预览">
+    <div class="modal-actions">
+      <button class="btn-ghost" id="share-preview-cancel">取消</button>
+      <button class="btn-primary" id="share-now">分享图片</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
+<script src="./html2canvas.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -504,6 +535,10 @@
   var currentTags = [];
   var sharePendingId = null;
   var sharePendingButton = null;
+  var sharePendingCard = null;
+  var sharePreparedBlob = null;
+  var sharePreparedFilename = "";
+  var sharePreparedUrl = "";
   var shareOptions = loadShareOptions();
 
   // ---------- storage ----------
@@ -970,119 +1005,80 @@
   }
 
   // ---------- single-entry image share ----------
-  function canvasRoundRect(ctx, x, y, w, h, r){
-    var radius = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+radius,y);
-    ctx.arcTo(x+w,y,x+w,y+h,radius);
-    ctx.arcTo(x+w,y+h,x,y+h,radius);
-    ctx.arcTo(x,y+h,x,y,radius);
-    ctx.arcTo(x,y,x+w,y,radius);
-    ctx.closePath();
-  }
-  function canvasLines(ctx, text, maxWidth){
-    var lines = [];
-    String(text||"").split(/\r?\n/).forEach(function(paragraph){
-      if(!paragraph){ lines.push(""); return; }
-      var line = "";
-      Array.from(paragraph).forEach(function(char){
-        var next = line + char;
-        if(line && ctx.measureText(next).width > maxWidth){ lines.push(line); line = char; }
-        else line = next;
-      });
-      if(line) lines.push(line);
+  function canvasToBlobAsync(canvas){
+    return new Promise(function(resolve, reject){
+      canvas.toBlob(function(blob){
+        if(blob) resolve(blob);
+        else reject(new Error("无法生成图片"));
+      }, "image/png");
     });
-    return lines;
   }
-  function tagLayout(ctx, tags, maxWidth){
-    var rows = [[]], used = 0;
-    tags.forEach(function(tag){
-      var label = "#"+tag;
-      var width = Math.ceil(ctx.measureText(label).width) + 44;
-      if(used && used + 16 + width > maxWidth){ rows.push([]); used = 0; }
-      rows[rows.length-1].push({label:label,width:width});
-      used += (used ? 16 : 0) + width;
-    });
-    return tags.length ? rows : [];
-  }
-  function canvasToBlob(canvas){
-    var data = canvas.toDataURL("image/png");
-    var binary = atob(data.split(",")[1]);
-    var bytes = new Uint8Array(binary.length);
-    for(var i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
-    return new Blob([bytes], {type:"image/png"});
-  }
-  function makeShareImage(entry, options){
-    var width = 1080, side = 110, textWidth = width-side*2;
-    var canvas = document.createElement("canvas");
-    var ctx = canvas.getContext("2d");
-    var serif = appearance.font === "serif";
-    var bodyFamily = serif ? '"Noto Serif SC","Songti SC",serif' : '"PingFang SC","Helvetica Neue",sans-serif';
-    var uiFamily = '"PingFang SC","Helvetica Neue",sans-serif';
-    var accent = appearance.theme === "green" ? "#416B54" : "#A63D40";
-    var accentSoft = appearance.theme === "green" ? "rgba(65,107,84,.12)" : "rgba(166,61,64,.11)";
-    var fontSize = entry.content.length > 800 ? 46 : entry.content.length > 400 ? 52 : entry.content.length > 180 ? 60 : 68;
-    var signatureText = options.signature ? String(options.signatureText||"").trim() : "";
-    var contentStart = 132;
-    var hasFooter = Boolean(signatureText || options.date);
-    var footerSpace = hasFooter ? 190 : 110;
-    var lines, lineHeight, sourceLines, tagRows, contentHeight, sourceHeight, tagsHeight, height;
-    function measure(){
-      lineHeight = Math.round(fontSize*1.85);
-      ctx.font = (serif ? "400 " : "400 ") + fontSize + "px " + bodyFamily;
-      lines = canvasLines(ctx, entry.content, textWidth);
-      ctx.font = "400 29px "+uiFamily;
-      sourceLines = options.source && entry.source ? canvasLines(ctx, "「"+entry.source+"」", textWidth) : [];
-      ctx.font = "500 27px "+uiFamily;
-      tagRows = tagLayout(ctx, options.tags ? (entry.tags||[]) : [], textWidth);
-      contentHeight = lines.length*lineHeight;
-      sourceHeight = sourceLines.length ? sourceLines.length*44 + 38 : 0;
-      tagsHeight = tagRows.length ? tagRows.length*58 + 34 : 0;
-      height = Math.max(1440, contentStart + contentHeight + sourceHeight + tagsHeight + footerSpace);
+  function shareFooterText(entry, options){
+    var signature = options.signature ? String(options.signatureText||"").trim() : "";
+    var date = "";
+    if(options.date){
+      var d = new Date(entry.createdAt);
+      date = "录于 "+d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();
     }
-    measure();
-    while(height > 8000 && fontSize > 40){ fontSize -= 2; measure(); }
-    height = Math.min(8192, Math.ceil(height));
-    canvas.width = width; canvas.height = height;
-
-    ctx.fillStyle = "#F6F2E7"; ctx.fillRect(0,0,width,height);
-
-    var d = new Date(entry.createdAt);
-    var dateLabel = "录于 "+d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();
-
-    var y = contentStart;
-    ctx.fillStyle = "#2B241C"; ctx.font = "400 "+fontSize+"px "+bodyFamily; ctx.textBaseline = "alphabetic";
-    lines.forEach(function(line){ if(y < height-180){ ctx.fillText(line,side,y); y += lineHeight; } });
-    y += 36;
-    if(sourceLines.length){
-      ctx.fillStyle = "#8A8071"; ctx.font = "400 29px "+uiFamily;
-      sourceLines.forEach(function(line){ ctx.fillText(line,side,y); y += 44; });
-      y += 32;
+    return [signature, date].filter(Boolean).join(" ");
+  }
+  async function makeShareImage(entry, options, cardElement){
+    if(typeof html2canvas !== "function") throw new Error("截图组件未加载");
+    if(!cardElement) throw new Error("没有找到这张卡片");
+    if(document.fonts && document.fonts.ready){
+      try{ await document.fonts.ready; }catch(fontError){}
     }
-    if(tagRows.length){
-      ctx.font = "500 27px "+uiFamily;
-      tagRows.forEach(function(row){
-        var x = side;
-        row.forEach(function(tag){
-          ctx.fillStyle = accentSoft; canvasRoundRect(ctx,x,y-34,tag.width,46,23); ctx.fill();
-          ctx.fillStyle = accent; ctx.fillText(tag.label,x+22,y);
-          x += tag.width+16;
-        });
-        y += 58;
+
+    var clone = cardElement.cloneNode(true);
+    clone.removeAttribute("data-id");
+    clone.classList.add("share-capture-card");
+    var actions = clone.querySelector(".card-actions");
+    var stamp = clone.querySelector(".card-stamp");
+    if(actions) actions.remove();
+    if(stamp) stamp.remove();
+    if(!options.source){
+      var source = clone.querySelector(".card-source");
+      if(source) source.remove();
+    }
+    if(!options.tags){
+      clone.querySelectorAll(".card-tag").forEach(function(tag){ tag.remove(); });
+    }
+    var meta = clone.querySelector(".card-meta");
+    if(meta && !meta.children.length) meta.remove();
+    var footerText = shareFooterText(entry, options);
+    if(footerText){
+      var footer = document.createElement("div");
+      footer.className = "share-card-footer";
+      footer.textContent = footerText;
+      clone.appendChild(footer);
+    }
+
+    var width = Math.ceil(cardElement.getBoundingClientRect().width);
+    var host = document.createElement("div");
+    host.className = "share-capture-host";
+    host.style.width = width+"px";
+    clone.style.width = width+"px";
+    host.appendChild(clone);
+    document.body.appendChild(host);
+    try{
+      var scale = Math.min(4, Math.max(2, 1080/width));
+      var canvas = await html2canvas(clone, {
+        backgroundColor:getComputedStyle(clone).backgroundColor,
+        scale:scale,
+        useCORS:true,
+        logging:false,
+        windowWidth:document.documentElement.clientWidth
       });
+      return await canvasToBlobAsync(canvas);
+    }finally{
+      host.remove();
     }
-
-    if(hasFooter){
-      var footerText = [signatureText, options.date ? dateLabel : ""].filter(Boolean).join(" ");
-      ctx.fillStyle = "#8A8071"; ctx.font = "400 27px "+uiFamily; ctx.textAlign = "right";
-      ctx.fillText(footerText,width-side,height-94); ctx.textAlign = "left";
-    }
-    return canvasToBlob(canvas);
   }
   function openShareOptions(id, button){
     var entry = state.entries.find(function(e){ return e.id === id; });
     if(!entry) return;
     sharePendingId = id; sharePendingButton = button || null;
+    sharePendingCard = button ? button.closest(".card") : null;
     document.querySelectorAll("[data-share-option]").forEach(function(input){
       var key = input.getAttribute("data-share-option");
       input.disabled = (key === "tags" && !(entry.tags||[]).length) || (key === "source" && !entry.source);
@@ -1095,12 +1091,45 @@
   }
   function closeShareOptions(){
     document.getElementById("share-overlay").classList.remove("open");
-    sharePendingId = null; sharePendingButton = null;
+    sharePendingId = null; sharePendingButton = null; sharePendingCard = null;
+  }
+  function clearSharePreview(){
+    document.getElementById("share-preview-overlay").classList.remove("open");
+    document.getElementById("share-preview-image").removeAttribute("src");
+    if(sharePreparedUrl) URL.revokeObjectURL(sharePreparedUrl);
+    sharePreparedBlob = null; sharePreparedFilename = ""; sharePreparedUrl = "";
+  }
+  function downloadPreparedImage(){
+    if(!sharePreparedBlob) return;
+    var url = URL.createObjectURL(sharePreparedBlob);
+    var a = document.createElement("a");
+    a.href = url; a.download = sharePreparedFilename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+    showToast("图片已下载");
+  }
+  async function sharePreparedImage(){
+    if(!sharePreparedBlob) return;
+    var file = new File([sharePreparedBlob], sharePreparedFilename, {type:"image/png"});
+    try{
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:"摘句抽屉"});
+        clearSharePreview();
+      }else{
+        downloadPreparedImage();
+        clearSharePreview();
+      }
+    }catch(err){
+      if(err && err.name === "AbortError") return;
+      console.error(err);
+      downloadPreparedImage();
+      clearSharePreview();
+    }
   }
   async function shareEntry(){
     var entry = state.entries.find(function(e){ return e.id === sharePendingId; });
     if(!entry) return;
     var button = sharePendingButton;
+    var card = sharePendingCard;
     var signatureInput = document.querySelector('[data-share-option="signature"]');
     var signatureText = document.getElementById("share-name").value.trim();
     if(signatureInput.checked && !signatureText){
@@ -1116,30 +1145,20 @@
     document.getElementById("share-overlay").classList.remove("open");
     if(button) button.disabled = true;
     showToast("正在生成分享图片…");
-    var blob = null;
     var filename = "摘句-"+dateKey(new Date(entry.createdAt))+".png";
-    function downloadImage(){
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement("a");
-      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(function(){ URL.revokeObjectURL(url); },1000);
-      showToast("图片已下载");
-    }
     try{
-      blob = makeShareImage(entry, shareOptions);
-      var file = new File([blob], filename, {type:"image/png"});
-      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-        await navigator.share({files:[file],title:"摘句抽屉"});
-      } else {
-        downloadImage();
-      }
+      if(sharePreparedUrl) URL.revokeObjectURL(sharePreparedUrl);
+      sharePreparedBlob = await makeShareImage(entry, shareOptions, card);
+      sharePreparedFilename = filename;
+      sharePreparedUrl = URL.createObjectURL(sharePreparedBlob);
+      document.getElementById("share-preview-image").src = sharePreparedUrl;
+      document.getElementById("share-preview-overlay").classList.add("open");
     }catch(err){
-      if(err && err.name === "AbortError") return;
       console.error(err);
-      if(blob) downloadImage(); else showToast("图片生成失败，请重试");
+      showToast("图片生成失败，请重试");
     }finally{
       if(button) button.disabled = false;
-      sharePendingId = null; sharePendingButton = null;
+      sharePendingId = null; sharePendingButton = null; sharePendingCard = null;
     }
   }
 
@@ -1247,6 +1266,12 @@
   document.getElementById("share-overlay").addEventListener("click", function(e){
     if(e.target.id === "share-overlay") closeShareOptions();
   });
+  document.getElementById("share-preview-close").addEventListener("click", clearSharePreview);
+  document.getElementById("share-preview-cancel").addEventListener("click", clearSharePreview);
+  document.getElementById("share-now").addEventListener("click", sharePreparedImage);
+  document.getElementById("share-preview-overlay").addEventListener("click", function(e){
+    if(e.target.id === "share-preview-overlay") clearSharePreview();
+  });
   document.getElementById("entry-tag-text").addEventListener("keydown", function(e){
     if(e.key === "Enter" || e.key === ","){ e.preventDefault(); addTagFromInput(); }
     if(e.key === "Backspace" && !e.target.value && currentTags.length){
@@ -1256,6 +1281,8 @@
   document.addEventListener("keydown", function(e){
     var overlayOpen = document.getElementById("overlay").classList.contains("open");
     var shareOverlayOpen = document.getElementById("share-overlay").classList.contains("open");
+    var sharePreviewOpen = document.getElementById("share-preview-overlay").classList.contains("open");
+    if(sharePreviewOpen && e.key === "Escape"){ clearSharePreview(); }
     if(shareOverlayOpen && e.key === "Escape"){ closeShareOptions(); }
     if(overlayOpen && e.key === "Escape"){ closeModal(); }
     if(overlayOpen && (e.metaKey||e.ctrlKey) && e.key === "Enter"){ e.preventDefault(); saveEntry(); }

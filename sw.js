@@ -1,5 +1,5 @@
-const CACHE_NAME = "excerpt-drawer-v13";
-const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.png"];
+const CACHE_NAME = "excerpt-drawer-v14";
+const APP_SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.png", "./html2canvas.min.js"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
