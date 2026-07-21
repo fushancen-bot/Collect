@@ -277,6 +277,13 @@
   .share-option input:checked + span{background:var(--stamp-soft);border-color:var(--stamp);color:var(--stamp);}
   .share-option input:focus-visible + span{outline:2px solid var(--stamp);outline-offset:2px;}
   .share-option input:disabled + span{opacity:.36;cursor:not-allowed;}
+  .share-name-wrap{display:none;margin-top:10px;}
+  .share-name-wrap.show{display:block;}
+  .share-name-wrap input{
+    width:100%;border:1px solid var(--line);border-radius:999px;background:var(--paper);
+    padding:10px 14px;font-family:var(--mono);font-size:16px;color:var(--ink);
+  }
+  .share-name-wrap input:focus{outline:none;border-color:var(--stamp);}
 
   /* ---------- settings panel ---------- */
   .settings-panel{
@@ -468,7 +475,10 @@
       <label class="share-option"><input type="checkbox" data-share-option="tags"><span>标签</span></label>
       <label class="share-option"><input type="checkbox" data-share-option="source"><span>出处</span></label>
       <label class="share-option"><input type="checkbox" data-share-option="date"><span>日期</span></label>
-      <label class="share-option"><input type="checkbox" data-share-option="signature"><span>摘句抽屉署名</span></label>
+      <label class="share-option"><input type="checkbox" data-share-option="signature"><span>署名</span></label>
+    </div>
+    <div class="share-name-wrap" id="share-name-wrap">
+      <input type="text" id="share-name" placeholder="输入你的名字或 ID" maxlength="40" autocomplete="nickname">
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" id="share-cancel">取消</button>
@@ -537,9 +547,10 @@
         tags: saved.tags !== false,
         source: saved.source !== false,
         date: saved.date !== false,
-        signature: saved.signature !== false
+        signature: saved.signature === true,
+        signatureText: String(saved.signatureText || "")
       };
-    }catch(e){ return {tags:true,source:true,date:true,signature:true}; }
+    }catch(e){ return {tags:true,source:true,date:true,signature:false,signatureText:""}; }
   }
   function saveShareOptions(){ localStorage.setItem(SHARE_OPTIONS_KEY, JSON.stringify(shareOptions)); }
   function applyAppearance(){
@@ -1011,16 +1022,16 @@
     var accent = appearance.theme === "green" ? "#416B54" : "#A63D40";
     var accentSoft = appearance.theme === "green" ? "rgba(65,107,84,.12)" : "rgba(166,61,64,.11)";
     var fontSize = entry.content.length > 500 ? 38 : entry.content.length > 300 ? 43 : entry.content.length > 180 ? 49 : 56;
-    var hasHeader = options.signature || options.date;
-    var contentStart = hasHeader ? 282 : 208;
-    var footerSpace = options.signature ? 250 : 120;
+    var signatureText = options.signature ? String(options.signatureText||"").trim() : "";
+    var contentStart = options.date ? 212 : 132;
+    var footerSpace = signatureText ? 190 : 110;
     var lines, lineHeight, sourceLines, tagRows, contentHeight, sourceHeight, tagsHeight, height;
     function measure(){
-      lineHeight = Math.round(fontSize*1.72);
+      lineHeight = Math.round(fontSize*1.9);
       ctx.font = (serif ? "400 " : "400 ") + fontSize + "px " + bodyFamily;
       lines = canvasLines(ctx, entry.content, textWidth);
       ctx.font = "400 29px "+uiFamily;
-      sourceLines = options.source && entry.source ? canvasLines(ctx, "— "+entry.source, textWidth) : [];
+      sourceLines = options.source && entry.source ? canvasLines(ctx, "「"+entry.source+"」", textWidth) : [];
       ctx.font = "500 27px "+uiFamily;
       tagRows = tagLayout(ctx, options.tags ? (entry.tags||[]) : [], textWidth);
       contentHeight = lines.length*lineHeight;
@@ -1033,27 +1044,14 @@
     height = Math.min(4096, Math.ceil(height));
     canvas.width = width; canvas.height = height;
 
-    ctx.fillStyle = "#EDE7D8"; ctx.fillRect(0,0,width,height);
-    ctx.fillStyle = "rgba(255,255,255,.14)";
-    for(var gy=22;gy<height;gy+=34){ for(var gx=18;gx<width;gx+=38){ ctx.fillRect(gx,gy,1,1); } }
-    ctx.strokeStyle = "#D3C9AF"; ctx.lineWidth = 2;
-    canvasRoundRect(ctx,56,56,width-112,height-112,38); ctx.stroke();
+    ctx.fillStyle = "#F6F2E7"; ctx.fillRect(0,0,width,height);
 
     var d = new Date(entry.createdAt);
-    var dateLabel = d.getFullYear()+" / "+pad(d.getMonth()+1)+" / "+pad(d.getDate());
-    if(options.signature){
-      ctx.strokeStyle = accent; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
-      ctx.strokeRect(side,105,56,43);
-      ctx.beginPath(); ctx.moveTo(side,105); ctx.lineTo(side+5,88); ctx.lineTo(side+51,88); ctx.lineTo(side+56,105); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(side+19,101); ctx.lineTo(side+19,90); ctx.moveTo(side+28,101); ctx.lineTo(side+28,90); ctx.moveTo(side+37,101); ctx.lineTo(side+37,90); ctx.stroke();
-      ctx.fillStyle = "#2B241C"; ctx.font = "600 33px "+uiFamily; ctx.textBaseline = "middle";
-      ctx.fillText("摘句抽屉", side+78, 119);
-    }
+    var dateLabel = "录于 "+d.getFullYear()+" / "+pad(d.getMonth()+1)+" / "+pad(d.getDate());
     if(options.date){
-      ctx.fillStyle = "#8A8071"; ctx.font = "400 25px "+uiFamily; ctx.textAlign = "right";
-      ctx.fillText(dateLabel,width-side,119); ctx.textAlign = "left";
+      ctx.fillStyle = "#8A8071"; ctx.font = "400 25px "+uiFamily; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(dateLabel,width-side,106); ctx.textAlign = "left";
     }
-    ctx.fillStyle = accent; canvasRoundRect(ctx,side,hasHeader ? 184 : 116,70,8,4); ctx.fill();
 
     var y = contentStart;
     ctx.fillStyle = "#2B241C"; ctx.font = "400 "+fontSize+"px "+bodyFamily; ctx.textBaseline = "alphabetic";
@@ -1077,11 +1075,9 @@
       });
     }
 
-    if(options.signature){
-      ctx.strokeStyle = "#D3C9AF"; ctx.lineWidth = 2; ctx.beginPath();
-      ctx.moveTo(side,height-155); ctx.lineTo(width-side,height-155); ctx.stroke();
-      ctx.fillStyle = "#8A8071"; ctx.font = "400 24px "+uiFamily;
-      ctx.fillText("把偶然遇见的句子，收进一只私人抽屉。",side,height-104);
+    if(signatureText){
+      ctx.fillStyle = "#8A8071"; ctx.font = "400 27px "+uiFamily; ctx.textAlign = "right";
+      ctx.fillText(signatureText,width-side,height-94); ctx.textAlign = "left";
     }
     return canvasToBlob(canvas);
   }
@@ -1094,6 +1090,8 @@
       input.disabled = (key === "tags" && !(entry.tags||[]).length) || (key === "source" && !entry.source);
       input.checked = !input.disabled && shareOptions[key];
     });
+    document.getElementById("share-name").value = shareOptions.signatureText || "";
+    document.getElementById("share-name-wrap").classList.toggle("show", document.querySelector('[data-share-option="signature"]').checked);
     document.getElementById("share-overlay").classList.add("open");
     if(document.fonts && document.fonts.ready) document.fonts.ready.catch(function(){});
   }
@@ -1105,9 +1103,17 @@
     var entry = state.entries.find(function(e){ return e.id === sharePendingId; });
     if(!entry) return;
     var button = sharePendingButton;
+    var signatureInput = document.querySelector('[data-share-option="signature"]');
+    var signatureText = document.getElementById("share-name").value.trim();
+    if(signatureInput.checked && !signatureText){
+      showToast("请填写署名，或关闭署名选项");
+      document.getElementById("share-name").focus();
+      return;
+    }
     document.querySelectorAll("[data-share-option]").forEach(function(input){
       if(!input.disabled) shareOptions[input.getAttribute("data-share-option")] = input.checked;
     });
+    shareOptions.signatureText = signatureText;
     saveShareOptions();
     document.getElementById("share-overlay").classList.remove("open");
     if(button) button.disabled = true;
@@ -1236,6 +1242,10 @@
   document.getElementById("share-modal-close").addEventListener("click", closeShareOptions);
   document.getElementById("share-cancel").addEventListener("click", closeShareOptions);
   document.getElementById("share-create").addEventListener("click", shareEntry);
+  document.querySelector('[data-share-option="signature"]').addEventListener("change", function(e){
+    document.getElementById("share-name-wrap").classList.toggle("show", e.target.checked);
+    if(e.target.checked) setTimeout(function(){ document.getElementById("share-name").focus(); },30);
+  });
   document.getElementById("share-overlay").addEventListener("click", function(e){
     if(e.target.id === "share-overlay") closeShareOptions();
   });
