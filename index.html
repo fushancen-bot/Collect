@@ -263,6 +263,21 @@
   .btn-ghost:hover{color:var(--ink);}
   .hint{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:8px;}
 
+  /* ---------- share image options ---------- */
+  .share-modal{max-width:360px;border-radius:20px;padding:22px;}
+  .share-copy{font-family:var(--app-font);font-size:13px;line-height:1.7;color:var(--ink-soft);margin:-3px 0 15px;}
+  .share-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .share-option{position:relative;display:block;cursor:pointer;margin:0 !important;}
+  .share-option input{position:absolute;opacity:0;pointer-events:none;}
+  .share-option span{
+    display:flex;align-items:center;justify-content:center;min-height:39px;padding:8px 12px;
+    border:1px solid var(--line);border-radius:999px;background:var(--paper);color:var(--ink-soft);
+    font-family:var(--mono);font-size:12.5px;transition:all .15s;
+  }
+  .share-option input:checked + span{background:var(--stamp-soft);border-color:var(--stamp);color:var(--stamp);}
+  .share-option input:focus-visible + span{outline:2px solid var(--stamp);outline-offset:2px;}
+  .share-option input:disabled + span{opacity:.36;cursor:not-allowed;}
+
   /* ---------- settings panel ---------- */
   .settings-panel{
     position:absolute;right:20px;top:52px;background:var(--paper-card);
@@ -442,6 +457,26 @@
   </div>
 </div>
 
+<div class="overlay" id="share-overlay">
+  <div class="modal share-modal" role="dialog" aria-modal="true" aria-labelledby="share-modal-title">
+    <div class="modal-title" id="share-modal-title">
+      <span>分享图片里显示</span>
+      <button id="share-modal-close" aria-label="关闭">✕</button>
+    </div>
+    <p class="share-copy">只保留你想带出去的信息；选择会记住，下次继续沿用。</p>
+    <div class="share-options">
+      <label class="share-option"><input type="checkbox" data-share-option="tags"><span>标签</span></label>
+      <label class="share-option"><input type="checkbox" data-share-option="source"><span>出处</span></label>
+      <label class="share-option"><input type="checkbox" data-share-option="date"><span>日期</span></label>
+      <label class="share-option"><input type="checkbox" data-share-option="signature"><span>摘句抽屉署名</span></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" id="share-cancel">取消</button>
+      <button class="btn-primary" id="share-create">生成分享图</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -449,6 +484,7 @@
   "use strict";
   var STORAGE_KEY = "excerptDrawer.v1";
   var APPEARANCE_KEY = "excerptDrawer.appearance.v1";
+  var SHARE_OPTIONS_KEY = "excerptDrawer.shareOptions.v1";
   var state = loadState();
   var appearance = loadAppearance();
   var query = "";
@@ -456,6 +492,9 @@
   var tagEditMode = false;
   var editingId = null;
   var currentTags = [];
+  var sharePendingId = null;
+  var sharePendingButton = null;
+  var shareOptions = loadShareOptions();
 
   // ---------- storage ----------
   function loadState(){
@@ -491,6 +530,18 @@
   function saveAppearance(){
     localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance));
   }
+  function loadShareOptions(){
+    try{
+      var saved = JSON.parse(localStorage.getItem(SHARE_OPTIONS_KEY) || "{}");
+      return {
+        tags: saved.tags !== false,
+        source: saved.source !== false,
+        date: saved.date !== false,
+        signature: saved.signature !== false
+      };
+    }catch(e){ return {tags:true,source:true,date:true,signature:true}; }
+  }
+  function saveShareOptions(){ localStorage.setItem(SHARE_OPTIONS_KEY, JSON.stringify(shareOptions)); }
   function applyAppearance(){
     document.documentElement.dataset.font = appearance.font;
     document.documentElement.dataset.theme = appearance.theme;
@@ -676,6 +727,7 @@
 
     timeline.querySelectorAll(".card").forEach(function(cardEl){
       var id = cardEl.getAttribute("data-id");
+      cardEl.querySelector('[data-action="share"]').addEventListener("click", function(){ openShareOptions(id, this); });
       cardEl.querySelector('[data-action="edit"]').addEventListener("click", function(){ openModal(id); });
       cardEl.querySelector('[data-action="delete"]').addEventListener("click", function(){
         if(confirm("删除这条摘录？")) deleteEntry(id);
@@ -734,6 +786,7 @@
     return '<div class="card" data-id="'+e.id+'">'
       + '<span class="card-stamp">'+formatStamp(d)+'</span>'
       + '<div class="card-actions">'
+        + '<button type="button" data-action="share" aria-label="分享为图片" title="分享为图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V3m0 0L8 7m4-4 4 4"/><path d="M5 11v8h14v-8"/></svg></button>'
         + '<button type="button" data-action="edit" aria-label="编辑"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>'
         + '<button type="button" data-action="delete" aria-label="删除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18"/><path d="M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>'
       + '</div>'
@@ -905,6 +958,187 @@
     showToast("已导出 Markdown");
   }
 
+  // ---------- single-entry image share ----------
+  function canvasRoundRect(ctx, x, y, w, h, r){
+    var radius = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+radius,y);
+    ctx.arcTo(x+w,y,x+w,y+h,radius);
+    ctx.arcTo(x+w,y+h,x,y+h,radius);
+    ctx.arcTo(x,y+h,x,y,radius);
+    ctx.arcTo(x,y,x+w,y,radius);
+    ctx.closePath();
+  }
+  function canvasLines(ctx, text, maxWidth){
+    var lines = [];
+    String(text||"").split(/\r?\n/).forEach(function(paragraph){
+      if(!paragraph){ lines.push(""); return; }
+      var line = "";
+      Array.from(paragraph).forEach(function(char){
+        var next = line + char;
+        if(line && ctx.measureText(next).width > maxWidth){ lines.push(line); line = char; }
+        else line = next;
+      });
+      if(line) lines.push(line);
+    });
+    return lines;
+  }
+  function tagLayout(ctx, tags, maxWidth){
+    var rows = [[]], used = 0;
+    tags.forEach(function(tag){
+      var label = "#"+tag;
+      var width = Math.ceil(ctx.measureText(label).width) + 44;
+      if(used && used + 16 + width > maxWidth){ rows.push([]); used = 0; }
+      rows[rows.length-1].push({label:label,width:width});
+      used += (used ? 16 : 0) + width;
+    });
+    return tags.length ? rows : [];
+  }
+  function canvasToBlob(canvas){
+    var data = canvas.toDataURL("image/png");
+    var binary = atob(data.split(",")[1]);
+    var bytes = new Uint8Array(binary.length);
+    for(var i=0;i<binary.length;i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], {type:"image/png"});
+  }
+  function makeShareImage(entry, options){
+    var width = 1080, side = 110, textWidth = width-side*2;
+    var canvas = document.createElement("canvas");
+    var ctx = canvas.getContext("2d");
+    var serif = appearance.font === "serif";
+    var bodyFamily = serif ? '"Noto Serif SC","Songti SC",serif' : '"PingFang SC","Helvetica Neue",sans-serif';
+    var uiFamily = '"PingFang SC","Helvetica Neue",sans-serif';
+    var accent = appearance.theme === "green" ? "#416B54" : "#A63D40";
+    var accentSoft = appearance.theme === "green" ? "rgba(65,107,84,.12)" : "rgba(166,61,64,.11)";
+    var fontSize = entry.content.length > 500 ? 38 : entry.content.length > 300 ? 43 : entry.content.length > 180 ? 49 : 56;
+    var hasHeader = options.signature || options.date;
+    var contentStart = hasHeader ? 282 : 208;
+    var footerSpace = options.signature ? 250 : 120;
+    var lines, lineHeight, sourceLines, tagRows, contentHeight, sourceHeight, tagsHeight, height;
+    function measure(){
+      lineHeight = Math.round(fontSize*1.72);
+      ctx.font = (serif ? "400 " : "400 ") + fontSize + "px " + bodyFamily;
+      lines = canvasLines(ctx, entry.content, textWidth);
+      ctx.font = "400 29px "+uiFamily;
+      sourceLines = options.source && entry.source ? canvasLines(ctx, "— "+entry.source, textWidth) : [];
+      ctx.font = "500 27px "+uiFamily;
+      tagRows = tagLayout(ctx, options.tags ? (entry.tags||[]) : [], textWidth);
+      contentHeight = lines.length*lineHeight;
+      sourceHeight = sourceLines.length ? sourceLines.length*44 + 38 : 0;
+      tagsHeight = tagRows.length ? tagRows.length*58 + 34 : 0;
+      height = Math.max(1440, contentStart + contentHeight + sourceHeight + tagsHeight + footerSpace);
+    }
+    measure();
+    while(height > 3600 && fontSize > 32){ fontSize -= 2; measure(); }
+    height = Math.min(4096, Math.ceil(height));
+    canvas.width = width; canvas.height = height;
+
+    ctx.fillStyle = "#EDE7D8"; ctx.fillRect(0,0,width,height);
+    ctx.fillStyle = "rgba(255,255,255,.14)";
+    for(var gy=22;gy<height;gy+=34){ for(var gx=18;gx<width;gx+=38){ ctx.fillRect(gx,gy,1,1); } }
+    ctx.strokeStyle = "#D3C9AF"; ctx.lineWidth = 2;
+    canvasRoundRect(ctx,56,56,width-112,height-112,38); ctx.stroke();
+
+    var d = new Date(entry.createdAt);
+    var dateLabel = d.getFullYear()+" / "+pad(d.getMonth()+1)+" / "+pad(d.getDate());
+    if(options.signature){
+      ctx.strokeStyle = accent; ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      ctx.strokeRect(side,105,56,43);
+      ctx.beginPath(); ctx.moveTo(side,105); ctx.lineTo(side+5,88); ctx.lineTo(side+51,88); ctx.lineTo(side+56,105); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(side+19,101); ctx.lineTo(side+19,90); ctx.moveTo(side+28,101); ctx.lineTo(side+28,90); ctx.moveTo(side+37,101); ctx.lineTo(side+37,90); ctx.stroke();
+      ctx.fillStyle = "#2B241C"; ctx.font = "600 33px "+uiFamily; ctx.textBaseline = "middle";
+      ctx.fillText("摘句抽屉", side+78, 119);
+    }
+    if(options.date){
+      ctx.fillStyle = "#8A8071"; ctx.font = "400 25px "+uiFamily; ctx.textAlign = "right";
+      ctx.fillText(dateLabel,width-side,119); ctx.textAlign = "left";
+    }
+    ctx.fillStyle = accent; canvasRoundRect(ctx,side,hasHeader ? 184 : 116,70,8,4); ctx.fill();
+
+    var y = contentStart;
+    ctx.fillStyle = "#2B241C"; ctx.font = "400 "+fontSize+"px "+bodyFamily; ctx.textBaseline = "alphabetic";
+    lines.forEach(function(line){ if(y < height-180){ ctx.fillText(line,side,y); y += lineHeight; } });
+    y += 36;
+    if(sourceLines.length){
+      ctx.fillStyle = "#8A8071"; ctx.font = "400 29px "+uiFamily;
+      sourceLines.forEach(function(line){ ctx.fillText(line,side,y); y += 44; });
+      y += 32;
+    }
+    if(tagRows.length){
+      ctx.font = "500 27px "+uiFamily;
+      tagRows.forEach(function(row){
+        var x = side;
+        row.forEach(function(tag){
+          ctx.fillStyle = accentSoft; canvasRoundRect(ctx,x,y-34,tag.width,46,23); ctx.fill();
+          ctx.fillStyle = accent; ctx.fillText(tag.label,x+22,y);
+          x += tag.width+16;
+        });
+        y += 58;
+      });
+    }
+
+    if(options.signature){
+      ctx.strokeStyle = "#D3C9AF"; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(side,height-155); ctx.lineTo(width-side,height-155); ctx.stroke();
+      ctx.fillStyle = "#8A8071"; ctx.font = "400 24px "+uiFamily;
+      ctx.fillText("把偶然遇见的句子，收进一只私人抽屉。",side,height-104);
+    }
+    return canvasToBlob(canvas);
+  }
+  function openShareOptions(id, button){
+    var entry = state.entries.find(function(e){ return e.id === id; });
+    if(!entry) return;
+    sharePendingId = id; sharePendingButton = button || null;
+    document.querySelectorAll("[data-share-option]").forEach(function(input){
+      var key = input.getAttribute("data-share-option");
+      input.disabled = (key === "tags" && !(entry.tags||[]).length) || (key === "source" && !entry.source);
+      input.checked = !input.disabled && shareOptions[key];
+    });
+    document.getElementById("share-overlay").classList.add("open");
+    if(document.fonts && document.fonts.ready) document.fonts.ready.catch(function(){});
+  }
+  function closeShareOptions(){
+    document.getElementById("share-overlay").classList.remove("open");
+    sharePendingId = null; sharePendingButton = null;
+  }
+  async function shareEntry(){
+    var entry = state.entries.find(function(e){ return e.id === sharePendingId; });
+    if(!entry) return;
+    var button = sharePendingButton;
+    document.querySelectorAll("[data-share-option]").forEach(function(input){
+      if(!input.disabled) shareOptions[input.getAttribute("data-share-option")] = input.checked;
+    });
+    saveShareOptions();
+    document.getElementById("share-overlay").classList.remove("open");
+    if(button) button.disabled = true;
+    showToast("正在生成分享图片…");
+    var blob = null;
+    var filename = "摘句-"+dateKey(new Date(entry.createdAt))+".png";
+    function downloadImage(){
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(url); },1000);
+      showToast("图片已下载");
+    }
+    try{
+      blob = makeShareImage(entry, shareOptions);
+      var file = new File([blob], filename, {type:"image/png"});
+      if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:"摘句抽屉"});
+      } else {
+        downloadImage();
+      }
+    }catch(err){
+      if(err && err.name === "AbortError") return;
+      console.error(err);
+      if(blob) downloadImage(); else showToast("图片生成失败，请重试");
+    }finally{
+      if(button) button.disabled = false;
+      sharePendingId = null; sharePendingButton = null;
+    }
+  }
+
   // ---------- import ----------
   function importFile(file){
     var reader = new FileReader();
@@ -999,6 +1233,12 @@
   document.getElementById("overlay").addEventListener("click", function(e){
     if(e.target.id === "overlay") closeModal();
   });
+  document.getElementById("share-modal-close").addEventListener("click", closeShareOptions);
+  document.getElementById("share-cancel").addEventListener("click", closeShareOptions);
+  document.getElementById("share-create").addEventListener("click", shareEntry);
+  document.getElementById("share-overlay").addEventListener("click", function(e){
+    if(e.target.id === "share-overlay") closeShareOptions();
+  });
   document.getElementById("entry-tag-text").addEventListener("keydown", function(e){
     if(e.key === "Enter" || e.key === ","){ e.preventDefault(); addTagFromInput(); }
     if(e.key === "Backspace" && !e.target.value && currentTags.length){
@@ -1007,6 +1247,8 @@
   });
   document.addEventListener("keydown", function(e){
     var overlayOpen = document.getElementById("overlay").classList.contains("open");
+    var shareOverlayOpen = document.getElementById("share-overlay").classList.contains("open");
+    if(shareOverlayOpen && e.key === "Escape"){ closeShareOptions(); }
     if(overlayOpen && e.key === "Escape"){ closeModal(); }
     if(overlayOpen && (e.metaKey||e.ctrlKey) && e.key === "Enter"){ e.preventDefault(); saveEntry(); }
   });
