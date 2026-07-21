@@ -1021,13 +1021,14 @@
     var uiFamily = '"PingFang SC","Helvetica Neue",sans-serif';
     var accent = appearance.theme === "green" ? "#416B54" : "#A63D40";
     var accentSoft = appearance.theme === "green" ? "rgba(65,107,84,.12)" : "rgba(166,61,64,.11)";
-    var fontSize = entry.content.length > 500 ? 38 : entry.content.length > 300 ? 43 : entry.content.length > 180 ? 49 : 56;
+    var fontSize = entry.content.length > 800 ? 46 : entry.content.length > 400 ? 52 : entry.content.length > 180 ? 60 : 68;
     var signatureText = options.signature ? String(options.signatureText||"").trim() : "";
-    var contentStart = options.date ? 212 : 132;
-    var footerSpace = signatureText ? 190 : 110;
+    var contentStart = 132;
+    var hasFooter = Boolean(signatureText || options.date);
+    var footerSpace = hasFooter ? 190 : 110;
     var lines, lineHeight, sourceLines, tagRows, contentHeight, sourceHeight, tagsHeight, height;
     function measure(){
-      lineHeight = Math.round(fontSize*1.9);
+      lineHeight = Math.round(fontSize*1.85);
       ctx.font = (serif ? "400 " : "400 ") + fontSize + "px " + bodyFamily;
       lines = canvasLines(ctx, entry.content, textWidth);
       ctx.font = "400 29px "+uiFamily;
@@ -1040,18 +1041,14 @@
       height = Math.max(1440, contentStart + contentHeight + sourceHeight + tagsHeight + footerSpace);
     }
     measure();
-    while(height > 3600 && fontSize > 32){ fontSize -= 2; measure(); }
-    height = Math.min(4096, Math.ceil(height));
+    while(height > 8000 && fontSize > 40){ fontSize -= 2; measure(); }
+    height = Math.min(8192, Math.ceil(height));
     canvas.width = width; canvas.height = height;
 
     ctx.fillStyle = "#F6F2E7"; ctx.fillRect(0,0,width,height);
 
     var d = new Date(entry.createdAt);
-    var dateLabel = "录于 "+d.getFullYear()+" / "+pad(d.getMonth()+1)+" / "+pad(d.getDate());
-    if(options.date){
-      ctx.fillStyle = "#8A8071"; ctx.font = "400 25px "+uiFamily; ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
-      ctx.fillText(dateLabel,width-side,106); ctx.textAlign = "left";
-    }
+    var dateLabel = "录于 "+d.getFullYear()+"/"+(d.getMonth()+1)+"/"+d.getDate();
 
     var y = contentStart;
     ctx.fillStyle = "#2B241C"; ctx.font = "400 "+fontSize+"px "+bodyFamily; ctx.textBaseline = "alphabetic";
@@ -1075,9 +1072,10 @@
       });
     }
 
-    if(signatureText){
+    if(hasFooter){
+      var footerText = [signatureText, options.date ? dateLabel : ""].filter(Boolean).join(" ");
       ctx.fillStyle = "#8A8071"; ctx.font = "400 27px "+uiFamily; ctx.textAlign = "right";
-      ctx.fillText(signatureText,width-side,height-94); ctx.textAlign = "left";
+      ctx.fillText(footerText,width-side,height-94); ctx.textAlign = "left";
     }
     return canvasToBlob(canvas);
   }
